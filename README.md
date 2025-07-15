@@ -23,6 +23,7 @@ go get schneider.vip/hybridbuffer/storage/redis
 ```go
 import (
     "github.com/redis/go-redis/v9"
+    "schneider.vip/hybridbuffer"
     "schneider.vip/hybridbuffer/storage/redis"
 )
 
@@ -38,8 +39,9 @@ storage := redis.New(client)
 
 // Use with HybridBuffer
 buf := hybridbuffer.New(
-    hybridbuffer.WithStorage(storage),
+    hybridbuffer.WithStorage(func() storage.Backend { return storage }),
 )
+defer buf.Close()
 ```
 
 ### With Custom Options

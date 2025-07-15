@@ -4,12 +4,12 @@ package redis
 import (
 	"context"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"io"
 	"strconv"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/redis/go-redis/v9"
 	"schneider.vip/hybridbuffer/storage"
 )
@@ -109,7 +109,7 @@ func (r *Backend) Create() (io.WriteCloser, error) {
 	// Generate unique key
 	key, err := r.generateKey()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to generate Redis key")
+		return nil, fmt.Errorf("failed to generate Redis key: %w", err)
 	}
 	r.key = key
 
@@ -136,17 +136,17 @@ func (r *Backend) Open() (io.ReadCloser, error) {
 		if err == redis.Nil {
 			return nil, errors.New("metadata not found or expired")
 		}
-		return nil, errors.Wrap(err, "failed to get metadata")
+		return nil, fmt.Errorf("failed to get metadata: %w", err)
 	}
 
 	metaData, err := result.Result()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to read metadata")
+		return nil, fmt.Errorf("failed to read metadata: %w", err)
 	}
 
 	totalChunks, err := strconv.Atoi(metaData)
 	if err != nil {
-		return nil, errors.Wrap(err, "invalid metadata format")
+		return nil, fmt.Errorf("invalid metadata format: %w", err)
 	}
 
 	return &streamingReadCloser{
@@ -193,7 +193,7 @@ func (r *Backend) Remove() error {
 	// Delete all keys
 	delResult := r.client.Del(ctx, keysToDelete...)
 	if err := delResult.Err(); err != nil {
-		return errors.Wrap(err, "failed to delete Redis keys")
+		return fmt.Errorf("failed to delete Redis keys: %w", err)
 	}
 
 	return nil
@@ -273,7 +273,7 @@ func (w *streamingWriteCloser) flushChunk() error {
 	chunkKey := w.backend.getChunkKey(w.chunkIndex)
 	result := w.backend.client.Set(ctx, chunkKey, w.buffer, w.backend.expiration)
 	if err := result.Err(); err != nil {
-		return errors.Wrapf(err, "failed to store chunk %d", w.chunkIndex)
+		return fmt.Errorf("failed to store chunk %d: %w", w.chunkIndex, err)
 	}
 
 	// Reset buffer and increment chunk index
@@ -297,7 +297,7 @@ func (w *streamingWriteCloser) Close() error {
 	metaKey := w.backend.getMetadataKey()
 	result := w.backend.client.Set(ctx, metaKey, strconv.Itoa(w.chunkIndex), w.backend.expiration)
 	if err := result.Err(); err != nil {
-		return errors.Wrap(err, "failed to store metadata")
+		return fmt.Errorf("failed to store metadata: %w", err)
 	}
 
 	return nil
@@ -371,14 +371,14 @@ func (r *streamingReadCloser) loadNextChunk() error {
 	result := r.backend.client.Get(ctx, chunkKey)
 	if err := result.Err(); err != nil {
 		if err == redis.Nil {
-			return errors.Errorf("chunk %d not found", r.chunkIndex)
+			return fmt.Errorf("chunk %d not found", r.chunkIndex)
 		}
-		return errors.Wrapf(err, "failed to load chunk %d", r.chunkIndex)
+		return fmt.Errorf("failed to load chunk %d: %w", r.chunkIndex, err)
 	}
 
 	data, err := result.Result()
 	if err != nil {
-		return errors.Wrapf(err, "failed to read chunk %d data", r.chunkIndex)
+		return fmt.Errorf("failed to read chunk %d data: %w", r.chunkIndex, err)
 	}
 
 	r.chunkData = []byte(data)

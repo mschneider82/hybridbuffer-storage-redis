@@ -5,7 +5,6 @@ go 1.23.0
 toolchain go1.24.0
 
 require (
-	github.com/pkg/errors v0.9.1
 	github.com/redis/go-redis/v9 v9.11.0
 	schneider.vip/hybridbuffer/storage v1.0.6
 )
